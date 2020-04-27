@@ -574,14 +574,18 @@ size_t ofxFFmpegRecorder::addBuffer(const ofSoundBuffer &buffer, float afps){
 void ofxFFmpegRecorder::stop()
 {
     if (m_CustomRecordingFile) {
-        #if defined(_WIN32)
-        _pclose(m_CustomRecordingFile);
-        #else
-        pclose(m_CustomRecordingFile);
-        #endif
-        m_CustomRecordingFile = nullptr;
-        m_AddedVideoFrames = 0;
-        m_AddedAudioFrames = 0;
+        {
+            const std::lock_guard<std::mutex> lock(m_mutex);
+#if defined(_WIN32)
+            _pclose(m_CustomRecordingFile);
+#else
+            pclose(m_CustomRecordingFile);
+#endif
+            m_CustomRecordingFile = nullptr;
+            m_AddedVideoFrames = 0;
+            m_AddedAudioFrames = 0;
+        }
+        
         joinThread();
     }
     else if (m_DefaultRecordingFile) {
@@ -598,14 +602,19 @@ void ofxFFmpegRecorder::stop()
 void ofxFFmpegRecorder::cancel()
 {
     if (m_CustomRecordingFile) {
-        #if defined(_WIN32)
-        _pclose(m_CustomRecordingFile);
-        #else
-        pclose(m_CustomRecordingFile);
-        #endif
-        m_CustomRecordingFile = nullptr;
-        m_AddedVideoFrames = 0;
-        m_AddedAudioFrames = 0;
+        {
+            const std::lock_guard<std::mutex> lock(m_mutex);
+#if defined(_WIN32)
+            _pclose(m_CustomRecordingFile);
+#else
+            pclose(m_CustomRecordingFile);
+#endif
+            m_CustomRecordingFile = nullptr;
+            m_AddedVideoFrames = 0;
+            m_AddedAudioFrames = 0;
+        }
+
+       
         joinThread();
     }
     else if (m_DefaultRecordingFile) {
@@ -803,6 +812,8 @@ void ofxFFmpegRecorder::determineDefaultDevices()
 void ofxFFmpegRecorder::processFrame()
 {
     while (isRecording()) {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+
         ofPixels *pixels = nullptr;
         if (m_Frames.consume(pixels) && pixels) {
             const unsigned char *data = pixels->getData();

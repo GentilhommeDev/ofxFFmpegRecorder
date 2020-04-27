@@ -330,4 +330,5 @@ private:
     void processBuffer();
     void joinThread();
 
+    std::mutex m_mutex;
 };
