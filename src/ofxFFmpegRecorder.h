@@ -125,6 +125,7 @@ public:
     bool isPaused() const;
     void setPaused(bool paused);
 
+    inline void setManualRecording(bool b) { m_bManualRecording = b; }
 	void setPixelFormat(ofImageType aType);
 
     /**
@@ -331,4 +332,6 @@ private:
     void joinThread();
 
     std::mutex m_mutex;
+
+    bool m_bManualRecording;
 };

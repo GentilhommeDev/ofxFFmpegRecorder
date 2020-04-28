@@ -31,6 +31,7 @@ ofxFFmpegRecorder::ofxFFmpegRecorder()
     , m_AudioCodec("libmp3lame")
     , m_CustomRecordingFile(nullptr)
     , m_DefaultRecordingFile(nullptr)
+    , m_bManualRecording(false)
 {
 
 }
@@ -366,8 +367,13 @@ bool ofxFFmpegRecorder::startCustomRecord()
 	//args.push_back("-pix_fmts");
     args.push_back("-y");
     args.push_back("-an");
+  //  args.push_back("-r 30");
+  //  args.push_back("-framerate 30");
+   
+
     args.push_back("-r " + std::to_string(m_Fps));
     args.push_back("-framerate " + std::to_string(m_Fps));
+
     args.push_back("-s " + std::to_string(static_cast<unsigned int>(m_VideoSize.x)) + "x" + std::to_string(static_cast<unsigned int>(m_VideoSize.y)));
     args.push_back("-f rawvideo");
     //args.push_back("-pix_fmt rgb24");
@@ -380,6 +386,9 @@ bool ofxFFmpegRecorder::startCustomRecord()
     args.push_back("-b:v " + std::to_string(m_BitRate) + "k");
     args.push_back("-r " + std::to_string(m_Fps));
     args.push_back("-framerate " + std::to_string(m_Fps));
+   // args.push_back("-r 30");
+  //  args.push_back("-framerate 30");
+
     std::copy(m_AdditionalOutputArguments.begin(), m_AdditionalOutputArguments.end(), std::back_inserter(args));
     
     args.push_back(m_OutputPath);
@@ -515,7 +524,7 @@ size_t ofxFFmpegRecorder::addFrame(const ofPixels &pixels)
 
     size_t written = 0;
 
-    if (m_AddedVideoFrames == 0) {
+    if (m_AddedVideoFrames == 0 && !m_bManualRecording) {
         m_Thread = std::thread(&ofxFFmpegRecorder::processFrame, this);
         m_RecordStartTime = std::chrono::high_resolution_clock::now();
     }
@@ -525,12 +534,34 @@ size_t ofxFFmpegRecorder::addFrame(const ofPixels &pixels)
     float delta = std::chrono::duration<float>(now - m_RecordStartTime).count() - recordedDuration - m_TotalPauseDuration;
     const float framerate = 1.f / m_Fps;
 
-    while (m_AddedVideoFrames == 0 || delta >= framerate) {
-        delta -= framerate;
+    if (m_bManualRecording)
+    {
         m_Frames.produce(new ofPixels(pixels));
+
+        ofPixels* pixels = nullptr;
+        if(m_Frames.consume(pixels) && pixels) {
+            const unsigned char* data = pixels->getData();
+            const size_t dataLength = m_VideoSize.x * m_VideoSize.y * 3;
+            const size_t written = fwrite(data, sizeof(char), dataLength, m_CustomRecordingFile);
+            if (written <= 0) {
+                LOG_WARNING("Cannot write the frame.");
+            }
+
+            pixels->clear();
+            delete pixels;
+        }
+
         m_AddedVideoFrames++;
     }
+    else
+    {
 
+        while (m_AddedVideoFrames == 0 || delta >= framerate) {
+            delta -= framerate;
+            m_Frames.produce(new ofPixels(pixels));
+            m_AddedVideoFrames++;
+        }
+    }
     return written;
 }
 
@@ -585,7 +616,6 @@ void ofxFFmpegRecorder::stop()
             m_AddedVideoFrames = 0;
             m_AddedAudioFrames = 0;
         }
-        
         joinThread();
     }
     else if (m_DefaultRecordingFile) {
